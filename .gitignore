@@ -3,3 +3,4 @@
 .claude/
 logs/
 *.pyc
+include/config.h

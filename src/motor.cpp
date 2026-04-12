@@ -10,7 +10,18 @@ static long calOpen = 0;
 static bool calibrated = false;
 static bool wasMoving = false;
 
+static void motorEnable() {
+    digitalWrite(EN_PIN, LOW);   // LOW = driver enabled
+}
+
+static void motorDisable() {
+    digitalWrite(EN_PIN, HIGH);  // HIGH = driver disabled (silent, no holding torque)
+}
+
 void motorInit() {
+    pinMode(EN_PIN, OUTPUT);
+    motorDisable();  // start disabled (silent)
+
     pinMode(MS1_PIN, OUTPUT);
     pinMode(MS2_PIN, OUTPUT);
     digitalWrite(MS1_PIN, HIGH);
@@ -37,6 +48,7 @@ void motorLoop() {
 
     bool moving = stepper.distanceToGo() != 0;
     if (wasMoving && !moving) {
+        motorDisable();  // kill holding current - no more hissing
         saveCurrentPosition(stepper.currentPosition());
         Serial.printf("Motor stopped at %ld (%d%%)\n",
                        stepper.currentPosition(), motorGetPercent());
@@ -48,6 +60,7 @@ void motorMoveTo(int percent) {
     if (!calibrated) return;
     percent = constrain(percent, 0, 100);
     long target = map((long)percent, 0, 100, calClosed, calOpen);
+    motorEnable();
     stepper.moveTo(target);
     Serial.printf("Motor: moving to %d%% (step %ld)\n", percent, target);
 }
@@ -71,7 +84,7 @@ bool motorIsCalibrated() { return calibrated; }
 // --- Calibration ---
 
 void motorJog(int direction) {
-    // Continuous movement in one direction
+    motorEnable();
     long target = stepper.currentPosition() + (direction > 0 ? 100000 : -100000);
     stepper.moveTo(target);
 }

@@ -5,6 +5,7 @@
 #include "wifi_manager.h"
 #include "config.h"
 #include <HTTPClient.h>
+#include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include <time.h>
 
@@ -40,13 +41,16 @@ static String minutesToTime(int minutes) {
 static void fetchSunTimes() {
     if (!wifiIsConnected()) return;
 
+    WiFiClientSecure client;
+    client.setInsecure();  // skip cert verification for this public API
+
     HTTPClient http;
     char url[128];
     snprintf(url, sizeof(url),
-             "http://api.sunrise-sunset.org/json?lat=%.4f&lng=%.4f&formatted=0",
+             "https://api.sunrise-sunset.org/json?lat=%.4f&lng=%.4f&formatted=0",
              DEFAULT_LATITUDE, DEFAULT_LONGITUDE);
 
-    http.begin(url);
+    http.begin(client, url);
     http.setTimeout(5000);
     int code = http.GET();
 

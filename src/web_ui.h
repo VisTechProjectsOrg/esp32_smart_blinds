@@ -52,7 +52,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     -webkit-appearance: none; width: 28px; height: 28px;
     background: #e94560; border-radius: 50%; cursor: pointer;
   }
-  .slider-label { display: flex; justify-content: space-between; font-size: 0.8em; color: #888; padding: 4px 4px 8px; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.8em; color: #888; padding: 6px 4px 14px; }
   .collapsible { cursor: pointer; user-select: none; }
   .collapsible::after { content: ' +'; }
   .collapsible.active::after { content: ' -'; }
@@ -190,8 +190,27 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <label>Acceleration: <span id="accelVal">1000</span> steps/sec&sup2;</label>
       <input type="range" id="accelSlider" min="200" max="4000" step="200" value="1000">
     </div>
+    <div class="form-row">
+      <label>Latitude</label>
+      <input type="number" id="setLat" step="0.001" placeholder="43.65">
+    </div>
+    <div class="form-row">
+      <label>Longitude</label>
+      <input type="number" id="setLng" step="0.001" placeholder="-79.38">
+    </div>
+    <div class="form-row">
+      <label>WiFi SSID</label>
+      <input type="text" id="setSSID" maxlength="63" placeholder="Your WiFi name">
+    </div>
+    <div class="form-row">
+      <label>WiFi Password</label>
+      <input type="password" id="setPass" maxlength="63" placeholder="WiFi password">
+    </div>
     <button class="btn btn-cal btn-small" style="width:100%;display:none;" id="saveSettingsBtn" onclick="saveDeviceSettings()">Save Settings</button>
     <div class="msg" id="nameMsg"></div>
+    <div style="margin-top:16px;text-align:center;">
+      <a href="#" onclick="factoryReset()" style="color:#e94560;font-size:0.8em;text-decoration:none;">Factory Reset</a>
+    </div>
   </div>
 </div>
 
@@ -321,13 +340,21 @@ document.getElementById('accelSlider').addEventListener('input', function() {
   showSettingsBtn();
 });
 document.getElementById('devName').addEventListener('input', showSettingsBtn);
+document.getElementById('setLat').addEventListener('input', showSettingsBtn);
+document.getElementById('setLng').addEventListener('input', showSettingsBtn);
+document.getElementById('setSSID').addEventListener('input', showSettingsBtn);
+document.getElementById('setPass').addEventListener('input', showSettingsBtn);
 
-// Save device settings (name + speed + accel)
+// Save all device settings
 function saveDeviceSettings() {
   const data = {
     name: document.getElementById('devName').value.trim(),
     speed: parseInt(document.getElementById('speedSlider').value),
-    accel: parseInt(document.getElementById('accelSlider').value)
+    accel: parseInt(document.getElementById('accelSlider').value),
+    lat: parseFloat(document.getElementById('setLat').value) || 0,
+    lng: parseFloat(document.getElementById('setLng').value) || 0,
+    ssid: document.getElementById('setSSID').value.trim(),
+    pass: document.getElementById('setPass').value
   };
   fetch('/api/settings', {
     method: 'POST',
@@ -335,8 +362,15 @@ function saveDeviceSettings() {
     body: JSON.stringify(data)
   }).then(r => r.json()).then(d => {
     document.getElementById('saveSettingsBtn').style.display = 'none';
-    document.getElementById('nameMsg').textContent = 'Saved!';
-    setTimeout(() => document.getElementById('nameMsg').textContent = '', 2000);
+    document.getElementById('nameMsg').textContent = 'Saved! Reboot to apply WiFi changes.';
+    setTimeout(() => document.getElementById('nameMsg').textContent = '', 3000);
+  });
+}
+
+function factoryReset() {
+  if (!confirm('This will erase ALL settings (WiFi, calibration, schedule). Continue?')) return;
+  fetch('/api/reset', {method:'POST'}).then(() => {
+    alert('Settings cleared. Device will reboot into AP setup mode.');
   });
 }
 
@@ -347,6 +381,9 @@ fetch('/api/settings').then(r => r.json()).then(d => {
     document.getElementById('speedVal').textContent = d.speed;
     document.getElementById('accelSlider').value = d.accel;
     document.getElementById('accelVal').textContent = d.accel;
+    document.getElementById('setLat').value = d.lat;
+    document.getElementById('setLng').value = d.lng;
+    document.getElementById('setSSID').value = d.ssid || '';
   }
 }).catch(() => {});
 

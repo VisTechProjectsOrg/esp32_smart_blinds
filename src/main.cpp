@@ -23,11 +23,27 @@ void setup() {
     Serial.println("\n=== Smart Blinds Controller ===");
 
     storageInit();
+
+    // Factory reset: hold button during boot for 5 seconds
+    pinMode(BTN_PIN, INPUT_PULLUP);
+    if (digitalRead(BTN_PIN) == LOW) {
+        Serial.println("Button held on boot - hold 5s to factory reset...");
+        unsigned long start = millis();
+        while (digitalRead(BTN_PIN) == LOW && millis() - start < 5000) {
+            delay(100);
+        }
+        if (millis() - start >= 5000) {
+            Serial.println("FACTORY RESET");
+            clearAllSettings();
+            delay(500);
+            ESP.restart();
+        }
+        Serial.println("Released early - normal boot");
+    }
+
     loadDeviceName(deviceName, sizeof(deviceName));
     Serial.printf("Device name: %s\n", deviceName);
     motorInit();
-
-    pinMode(BTN_PIN, INPUT_PULLUP);
 
     wifiInit();
     sinricInit();

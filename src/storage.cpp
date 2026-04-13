@@ -51,6 +51,40 @@ void loadMotorSpeed(int& speed, int& accel) {
     accel = prefs.getInt("mAccel", DEFAULT_ACCEL);
 }
 
+void saveLocation(float lat, float lng) {
+    prefs.putFloat("lat", lat);
+    prefs.putFloat("lng", lng);
+}
+
+void loadLocation(float& lat, float& lng) {
+    lat = prefs.getFloat("lat", DEFAULT_LATITUDE);
+    lng = prefs.getFloat("lng", DEFAULT_LONGITUDE);
+}
+
+void saveWiFiCreds(const char* ssid, const char* pass) {
+    prefs.putString("wSSID", ssid);
+    prefs.putString("wPass", pass);
+    prefs.putBool("wSet", true);
+}
+
+void loadWiFiCreds(char* ssid, size_t ssidLen, char* pass, size_t passLen) {
+    String s = prefs.getString("wSSID", "");
+    strncpy(ssid, s.c_str(), ssidLen - 1);
+    ssid[ssidLen - 1] = '\0';
+    String p = prefs.getString("wPass", "");
+    strncpy(pass, p.c_str(), passLen - 1);
+    pass[passLen - 1] = '\0';
+}
+
+bool hasWiFiCreds() {
+    return prefs.getBool("wSet", false);
+}
+
+void clearAllSettings() {
+    prefs.clear();
+    Serial.println("[Storage] All settings cleared");
+}
+
 void saveScheduleSettings(const ScheduleSettings& s) {
     prefs.putBool("autoOpen", s.autoOpen);
     prefs.putBool("autoClose", s.autoClose);

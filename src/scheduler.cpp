@@ -42,10 +42,13 @@ static void fetchSunTimes() {
     client.setInsecure();
 
     HTTPClient http;
+    float lat, lng;
+    loadLocation(lat, lng);
+
     char url[128];
     snprintf(url, sizeof(url),
              "https://api.sunrise-sunset.org/json?lat=%.4f&lng=%.4f&formatted=0",
-             DEFAULT_LATITUDE, DEFAULT_LONGITUDE);
+             lat, lng);
 
     http.begin(client, url);
     http.setTimeout(5000);
@@ -61,19 +64,30 @@ static void fetchSunTimes() {
             const char* setStr = doc["results"]["sunset"];
 
             if (riseStr && setStr) {
-                int rH, rM, sH, sM;
-                sscanf(strchr(riseStr, 'T') + 1, "%d:%d", &rH, &rM);
-                sscanf(strchr(setStr, 'T') + 1, "%d:%d", &sH, &sM);
+                // Parse UTC times and convert using system timezone (auto DST)
+                int rH, rM, rS, sH, sM, sS;
+                int rY, rMo, rD, sY, sMo, sD;
+                // "2026-04-12T10:32:15+00:00"
+                sscanf(riseStr, "%d-%d-%dT%d:%d:%d", &rY, &rMo, &rD, &rH, &rM, &rS);
+                sscanf(setStr, "%d-%d-%dT%d:%d:%d", &sY, &sMo, &sD, &sH, &sM, &sS);
 
-                rH += DEFAULT_UTC_OFFSET;
-                sH += DEFAULT_UTC_OFFSET;
-                if (rH < 0) rH += 24;
-                if (sH < 0) sH += 24;
-                if (rH >= 24) rH -= 24;
-                if (sH >= 24) sH -= 24;
+                // Build UTC time_t and convert to local via mktime/localtime
+                struct tm utcRise = {};
+                utcRise.tm_year = rY - 1900; utcRise.tm_mon = rMo - 1; utcRise.tm_mday = rD;
+                utcRise.tm_hour = rH; utcRise.tm_min = rM; utcRise.tm_sec = rS;
+                time_t riseEpoch = mktime(&utcRise) - _timezone;
+                struct tm localRise;
+                localtime_r(&riseEpoch, &localRise);
 
-                sunriseMin = rH * 60 + rM;
-                sunsetMin = sH * 60 + sM;
+                struct tm utcSet = {};
+                utcSet.tm_year = sY - 1900; utcSet.tm_mon = sMo - 1; utcSet.tm_mday = sD;
+                utcSet.tm_hour = sH; utcSet.tm_min = sM; utcSet.tm_sec = sS;
+                time_t setEpoch = mktime(&utcSet) - _timezone;
+                struct tm localSet;
+                localtime_r(&setEpoch, &localSet);
+
+                sunriseMin = localRise.tm_hour * 60 + localRise.tm_min;
+                sunsetMin = localSet.tm_hour * 60 + localSet.tm_min;
                 sunriseStr = minutesToTime(sunriseMin);
                 sunsetStr = minutesToTime(sunsetMin);
 
@@ -92,8 +106,10 @@ static void fetchSunTimes() {
 }
 
 void schedulerInit() {
-    configTime(DEFAULT_UTC_OFFSET * 3600, 0, "pool.ntp.org", "time.nist.gov");
-    Serial.println("[Scheduler] NTP sync started");
+    // POSIX timezone: EST5EDT = auto DST for Eastern Time
+    // Switches to EDT (UTC-4) second Sunday in March, back to EST (UTC-5) first Sunday in November
+    configTzTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
+    Serial.println("[Scheduler] NTP sync started (auto DST)");
 
     loadScheduleSettings(sched);
 }

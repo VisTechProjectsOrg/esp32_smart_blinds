@@ -9,3 +9,4 @@ void wifiInit();
 void wifiLoop();
 String wifiGetIP();
 bool wifiIsConnected();
+bool wifiIsAPMode();

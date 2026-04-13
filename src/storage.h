@@ -21,6 +21,18 @@ void loadDeviceName(char* name, size_t maxLen);
 void saveMotorSpeed(int speed, int accel);
 void loadMotorSpeed(int& speed, int& accel);
 
+// Location
+void saveLocation(float lat, float lng);
+void loadLocation(float& lat, float& lng);
+
+// WiFi credentials
+void saveWiFiCreds(const char* ssid, const char* pass);
+void loadWiFiCreds(char* ssid, size_t ssidLen, char* pass, size_t passLen);
+bool hasWiFiCreds();
+
+// Factory reset
+void clearAllSettings();
+
 // Schedule settings
 struct ScheduleSettings {
     bool autoOpen;

@@ -187,16 +187,24 @@ void webServerInit() {
     server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
         int speed, accel;
         loadMotorSpeed(speed, accel);
+        float lat, lng;
+        loadLocation(lat, lng);
+        char ssid[64], pass[64];
+        loadWiFiCreds(ssid, sizeof(ssid), pass, sizeof(pass));
+
         JsonDocument doc;
         doc["name"] = deviceName;
         doc["speed"] = speed;
         doc["accel"] = accel;
+        doc["lat"] = lat;
+        doc["lng"] = lng;
+        doc["ssid"] = ssid;
         String json;
         serializeJson(doc, json);
         request->send(200, "application/json", json);
     });
 
-    // Save device settings (name + speed + accel)
+    // Save device settings
     server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest* request) {
         sendStatus(request);
     },
@@ -216,8 +224,26 @@ void webServerInit() {
                 int accel = doc["accel"] | DEFAULT_ACCEL;
                 saveMotorSpeed(speed, accel);
                 motorSetSpeed(speed, accel);
+
+                float lat = doc["lat"] | DEFAULT_LATITUDE;
+                float lng = doc["lng"] | DEFAULT_LONGITUDE;
+                saveLocation(lat, lng);
+
+                const char* ssid = doc["ssid"];
+                const char* pass = doc["pass"];
+                if (ssid && strlen(ssid) > 0) {
+                    saveWiFiCreds(ssid, pass ? pass : "");
+                }
             }
         }
+    });
+
+    // Factory reset
+    server.on("/api/reset", HTTP_POST, [](AsyncWebServerRequest* request) {
+        request->send(200, "text/plain", "OK");
+        clearAllSettings();
+        delay(500);
+        ESP.restart();
     });
 
     server.begin();

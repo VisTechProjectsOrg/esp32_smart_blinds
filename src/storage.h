@@ -17,6 +17,27 @@ long loadCurrentPosition();
 void saveDeviceName(const char* name);
 void loadDeviceName(char* name, size_t maxLen);
 
-// Sunrise/sunset settings
+// Motor speed settings
+void saveMotorSpeed(int speed, int accel);
+void loadMotorSpeed(int& speed, int& accel);
+
+// Schedule settings
+struct ScheduleSettings {
+    bool autoOpen;
+    bool autoClose;
+    char openMode[8];    // "sunrise" or "fixed"
+    char closeMode[8];   // "sunset" or "fixed"
+    int sunriseOffset;
+    int sunsetOffset;
+    int openHour;        // fixed open time
+    int openMin;
+    int closeHour;       // fixed close time
+    int closeMin;
+};
+
+void saveScheduleSettings(const ScheduleSettings& s);
+void loadScheduleSettings(ScheduleSettings& s);
+
+// Legacy compatibility
 void saveSunSettings(bool autoOpen, bool autoClose, int sunriseOffset, int sunsetOffset);
 void loadSunSettings(bool& autoOpen, bool& autoClose, int& sunriseOffset, int& sunsetOffset);

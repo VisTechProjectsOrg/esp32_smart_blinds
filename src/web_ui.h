@@ -52,7 +52,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     -webkit-appearance: none; width: 28px; height: 28px;
     background: #e94560; border-radius: 50%; cursor: pointer;
   }
-  .slider-label { display: flex; justify-content: space-between; font-size: 0.8em; color: #888; }
+  .slider-label { display: flex; justify-content: space-between; font-size: 0.8em; color: #888; padding: 4px 4px 8px; }
   .collapsible { cursor: pointer; user-select: none; }
   .collapsible::after { content: ' +'; }
   .collapsible.active::after { content: ' -'; }
@@ -65,6 +65,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
     border-radius: 6px; background: #1a1a2e; color: #eee; font-size: 0.95em;
   }
   .form-row input[type=checkbox] { width: auto; margin-right: 8px; }
+  .form-row input[type=time]::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
   .check-row { display: flex; align-items: center; }
   .msg { text-align: center; padding: 8px; font-size: 0.85em; color: #1a8a4a; }
   .msg.warn { color: #e94560; }
@@ -118,29 +119,53 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
 <!-- Schedule -->
 <div class="card">
-  <h2 class="collapsible" onclick="toggle(this)">Sunrise / Sunset Schedule</h2>
+  <h2 class="collapsible" onclick="toggle(this)">Open / Close Schedule</h2>
   <div class="collapse-content">
     <div class="form-row">
       <div class="check-row">
         <input type="checkbox" id="autoOpen" checked>
-        <label for="autoOpen">Auto-open at sunrise</label>
+        <label for="autoOpen">Auto-open</label>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="openModeRow">
+      <label>Open mode</label>
+      <select id="openMode" onchange="toggleOpenMode()">
+        <option value="sunrise">At sunrise</option>
+        <option value="fixed">At fixed time</option>
+      </select>
+    </div>
+    <div class="form-row" id="sunriseOffRow">
       <label>Sunrise offset (minutes, +/- )</label>
       <input type="number" id="sunriseOff" value="0" min="-120" max="120">
     </div>
-    <div class="form-row">
+    <div class="form-row" id="openTimeRow" style="display:none;">
+      <label>Open time</label>
+      <input type="time" id="openTime" value="08:00">
+    </div>
+
+    <div class="form-row" style="margin-top:16px;">
       <div class="check-row">
         <input type="checkbox" id="autoClose" checked>
-        <label for="autoClose">Auto-close at sunset</label>
+        <label for="autoClose">Auto-close</label>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row" id="closeModeRow">
+      <label>Close mode</label>
+      <select id="closeMode" onchange="toggleCloseMode()">
+        <option value="sunset">At sunset</option>
+        <option value="fixed">At fixed time</option>
+      </select>
+    </div>
+    <div class="form-row" id="sunsetOffRow">
       <label>Sunset offset (minutes, +/- )</label>
       <input type="number" id="sunsetOff" value="0" min="-120" max="120">
     </div>
-    <div class="form-row">
+    <div class="form-row" id="closeTimeRow" style="display:none;">
+      <label>Close time</label>
+      <input type="time" id="closeTime" value="21:00">
+    </div>
+
+    <div class="form-row" style="margin-top:12px;">
       <label>Sunrise / Sunset today</label>
       <div style="font-size:0.9em; color:#ccc;" id="sunTimes">--</div>
     </div>
@@ -157,7 +182,15 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
       <label>Device name (used for mDNS: name.local)</label>
       <input type="text" id="devName" maxlength="31" placeholder="smartblinds">
     </div>
-    <button class="btn btn-cal btn-small" style="width:100%;" onclick="renameDevice()">Save Name</button>
+    <div class="form-row">
+      <label>Motor speed: <span id="speedVal">2000</span> steps/sec</label>
+      <input type="range" id="speedSlider" min="200" max="4000" step="200" value="2000">
+    </div>
+    <div class="form-row">
+      <label>Acceleration: <span id="accelVal">1000</span> steps/sec&sup2;</label>
+      <input type="range" id="accelSlider" min="200" max="4000" step="200" value="1000">
+    </div>
+    <button class="btn btn-cal btn-small" style="width:100%;display:none;" id="saveSettingsBtn" onclick="saveDeviceSettings()">Save Settings</button>
     <div class="msg" id="nameMsg"></div>
   </div>
 </div>
@@ -242,13 +275,28 @@ function toggle(el) {
   el.nextElementSibling.classList.toggle('show');
 }
 
-// Schedule
+// Schedule mode toggles
+function toggleOpenMode() {
+  const mode = document.getElementById('openMode').value;
+  document.getElementById('sunriseOffRow').style.display = mode === 'sunrise' ? '' : 'none';
+  document.getElementById('openTimeRow').style.display = mode === 'fixed' ? '' : 'none';
+}
+function toggleCloseMode() {
+  const mode = document.getElementById('closeMode').value;
+  document.getElementById('sunsetOffRow').style.display = mode === 'sunset' ? '' : 'none';
+  document.getElementById('closeTimeRow').style.display = mode === 'fixed' ? '' : 'none';
+}
+
 function saveSchedule() {
   const data = {
     autoOpen: document.getElementById('autoOpen').checked,
     autoClose: document.getElementById('autoClose').checked,
+    openMode: document.getElementById('openMode').value,
+    closeMode: document.getElementById('closeMode').value,
     sunriseOffset: parseInt(document.getElementById('sunriseOff').value) || 0,
-    sunsetOffset: parseInt(document.getElementById('sunsetOff').value) || 0
+    sunsetOffset: parseInt(document.getElementById('sunsetOff').value) || 0,
+    openTime: document.getElementById('openTime').value,
+    closeTime: document.getElementById('closeTime').value
   };
   fetch('/api/schedule', {
     method: 'POST',
@@ -260,19 +308,47 @@ function saveSchedule() {
   });
 }
 
-// Rename device
-function renameDevice() {
-  const name = document.getElementById('devName').value.trim();
-  if (!name) return;
-  fetch('/api/rename', {
+// Show save button on any device settings change
+function showSettingsBtn() {
+  document.getElementById('saveSettingsBtn').style.display = '';
+}
+document.getElementById('speedSlider').addEventListener('input', function() {
+  document.getElementById('speedVal').textContent = this.value;
+  showSettingsBtn();
+});
+document.getElementById('accelSlider').addEventListener('input', function() {
+  document.getElementById('accelVal').textContent = this.value;
+  showSettingsBtn();
+});
+document.getElementById('devName').addEventListener('input', showSettingsBtn);
+
+// Save device settings (name + speed + accel)
+function saveDeviceSettings() {
+  const data = {
+    name: document.getElementById('devName').value.trim(),
+    speed: parseInt(document.getElementById('speedSlider').value),
+    accel: parseInt(document.getElementById('accelSlider').value)
+  };
+  fetch('/api/settings', {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({name: name})
+    body: JSON.stringify(data)
   }).then(r => r.json()).then(d => {
-    document.getElementById('nameMsg').textContent = 'Saved! Reboot to apply mDNS.';
-    setTimeout(() => document.getElementById('nameMsg').textContent = '', 3000);
+    document.getElementById('saveSettingsBtn').style.display = 'none';
+    document.getElementById('nameMsg').textContent = 'Saved!';
+    setTimeout(() => document.getElementById('nameMsg').textContent = '', 2000);
   });
 }
+
+// Load device settings on page load
+fetch('/api/settings').then(r => r.json()).then(d => {
+  if (d) {
+    document.getElementById('speedSlider').value = d.speed;
+    document.getElementById('speedVal').textContent = d.speed;
+    document.getElementById('accelSlider').value = d.accel;
+    document.getElementById('accelVal').textContent = d.accel;
+  }
+}).catch(() => {});
 
 // Load schedule settings on page load
 fetch('/api/schedule').then(r => r.json()).then(d => {
@@ -281,6 +357,12 @@ fetch('/api/schedule').then(r => r.json()).then(d => {
     document.getElementById('autoClose').checked = d.autoClose;
     document.getElementById('sunriseOff').value = d.sunriseOffset;
     document.getElementById('sunsetOff').value = d.sunsetOffset;
+    document.getElementById('openMode').value = d.openMode || 'sunrise';
+    document.getElementById('closeMode').value = d.closeMode || 'sunset';
+    document.getElementById('openTime').value = d.openTime || '08:00';
+    document.getElementById('closeTime').value = d.closeTime || '21:00';
+    toggleOpenMode();
+    toggleCloseMode();
   }
 });
 

@@ -9,10 +9,7 @@
 #include <ArduinoJson.h>
 #include <time.h>
 
-static bool autoOpen = true;
-static bool autoClose = true;
-static int sunriseOffsetMin = 0;
-static int sunsetOffsetMin = 0;
+static ScheduleSettings sched;
 
 // Sun times as minutes since midnight (local time)
 static int sunriseMin = -1;
@@ -42,7 +39,7 @@ static void fetchSunTimes() {
     if (!wifiIsConnected()) return;
 
     WiFiClientSecure client;
-    client.setInsecure();  // skip cert verification for this public API
+    client.setInsecure();
 
     HTTPClient http;
     char url[128];
@@ -60,18 +57,14 @@ static void fetchSunTimes() {
         DeserializationError err = deserializeJson(doc, payload);
 
         if (!err && doc["status"] == "OK") {
-            // API returns ISO 8601 UTC times like "2026-04-12T10:32:00+00:00"
             const char* riseStr = doc["results"]["sunrise"];
             const char* setStr = doc["results"]["sunset"];
 
             if (riseStr && setStr) {
-                // Parse hours and minutes from ISO time
-                // Format: "YYYY-MM-DDTHH:MM:SS+00:00"
                 int rH, rM, sH, sM;
                 sscanf(strchr(riseStr, 'T') + 1, "%d:%d", &rH, &rM);
                 sscanf(strchr(setStr, 'T') + 1, "%d:%d", &sH, &sM);
 
-                // Convert from UTC to local
                 rH += DEFAULT_UTC_OFFSET;
                 sH += DEFAULT_UTC_OFFSET;
                 if (rH < 0) rH += 24;
@@ -99,48 +92,59 @@ static void fetchSunTimes() {
 }
 
 void schedulerInit() {
-    // NTP time sync
     configTime(DEFAULT_UTC_OFFSET * 3600, 0, "pool.ntp.org", "time.nist.gov");
     Serial.println("[Scheduler] NTP sync started");
 
-    // Load saved settings
-    loadSunSettings(autoOpen, autoClose, sunriseOffsetMin, sunsetOffsetMin);
+    loadScheduleSettings(sched);
 }
 
 void schedulerLoop() {
     unsigned long now = millis();
-    if (now - lastCheck < 30000) return;  // check every 30 seconds
+    if (now - lastCheck < 30000) return;
     lastCheck = now;
 
     struct tm timeinfo;
-    if (!getLocalTime(&timeinfo, 100)) return;  // no time yet
+    if (!getLocalTime(&timeinfo, 100)) return;
 
     int today = timeinfo.tm_yday;
     int nowMin = timeinfo.tm_hour * 60 + timeinfo.tm_min;
 
-    // Fetch sun times once per day (or if never fetched)
+    // Fetch sun times once per day
     if (lastFetchDay != today) {
         fetchSunTimes();
         triggeredOpenToday = false;
         triggeredCloseToday = false;
     }
 
-    if (sunriseMin < 0 || sunsetMin < 0) return;
     if (!motorIsCalibrated()) return;
 
-    // Sunrise trigger
-    int openAt = sunriseMin + sunriseOffsetMin;
-    if (autoOpen && !triggeredOpenToday && nowMin >= openAt && nowMin < openAt + 5) {
-        Serial.println("[Scheduler] Sunrise trigger - opening");
+    // Open trigger
+    int openAt = -1;
+    if (strcmp(sched.openMode, "fixed") == 0) {
+        openAt = sched.openHour * 60 + sched.openMin;
+    } else if (sunriseMin >= 0) {
+        openAt = sunriseMin + sched.sunriseOffset;
+    }
+
+    if (sched.autoOpen && openAt >= 0 && !triggeredOpenToday && nowMin >= openAt && nowMin < openAt + 5) {
+        Serial.printf("[Scheduler] Open trigger at %s\n",
+                       strcmp(sched.openMode, "fixed") == 0 ? "fixed time" : "sunrise");
         motorOpen();
         sinricSendPosition(100);
         triggeredOpenToday = true;
     }
 
-    // Sunset trigger
-    int closeAt = sunsetMin + sunsetOffsetMin;
-    if (autoClose && !triggeredCloseToday && nowMin >= closeAt && nowMin < closeAt + 5) {
-        Serial.println("[Scheduler] Sunset trigger - closing");
+    // Close trigger
+    int closeAt = -1;
+    if (strcmp(sched.closeMode, "fixed") == 0) {
+        closeAt = sched.closeHour * 60 + sched.closeMin;
+    } else if (sunsetMin >= 0) {
+        closeAt = sunsetMin + sched.sunsetOffset;
+    }
+
+    if (sched.autoClose && closeAt >= 0 && !triggeredCloseToday && nowMin >= closeAt && nowMin < closeAt + 5) {
+        Serial.printf("[Scheduler] Close trigger at %s\n",
+                       strcmp(sched.closeMode, "fixed") == 0 ? "fixed time" : "sunset");
         motorClose();
         sinricSendPosition(0);
         triggeredCloseToday = true;
@@ -152,9 +156,6 @@ void schedulerGetSunTimes(String& sunrise, String& sunset) {
     sunset = sunsetStr;
 }
 
-void schedulerUpdateSettings(bool ao, bool ac, int sunOff, int setOff) {
-    autoOpen = ao;
-    autoClose = ac;
-    sunriseOffsetMin = sunOff;
-    sunsetOffsetMin = setOff;
+void schedulerUpdateSettings(const ScheduleSettings& s) {
+    sched = s;
 }

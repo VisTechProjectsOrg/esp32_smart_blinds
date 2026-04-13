@@ -41,6 +41,44 @@ void loadDeviceName(char* name, size_t maxLen) {
     name[maxLen - 1] = '\0';
 }
 
+void saveMotorSpeed(int speed, int accel) {
+    prefs.putInt("mSpeed", speed);
+    prefs.putInt("mAccel", accel);
+}
+
+void loadMotorSpeed(int& speed, int& accel) {
+    speed = prefs.getInt("mSpeed", DEFAULT_MAX_SPEED);
+    accel = prefs.getInt("mAccel", DEFAULT_ACCEL);
+}
+
+void saveScheduleSettings(const ScheduleSettings& s) {
+    prefs.putBool("autoOpen", s.autoOpen);
+    prefs.putBool("autoClose", s.autoClose);
+    prefs.putString("openMode", s.openMode);
+    prefs.putString("closeMode", s.closeMode);
+    prefs.putInt("sunOff", s.sunriseOffset);
+    prefs.putInt("setOff", s.sunsetOffset);
+    prefs.putInt("openH", s.openHour);
+    prefs.putInt("openM", s.openMin);
+    prefs.putInt("closeH", s.closeHour);
+    prefs.putInt("closeM", s.closeMin);
+}
+
+void loadScheduleSettings(ScheduleSettings& s) {
+    s.autoOpen = prefs.getBool("autoOpen", true);
+    s.autoClose = prefs.getBool("autoClose", true);
+    String om = prefs.getString("openMode", "sunrise");
+    strncpy(s.openMode, om.c_str(), sizeof(s.openMode) - 1);
+    String cm = prefs.getString("closeMode", "sunset");
+    strncpy(s.closeMode, cm.c_str(), sizeof(s.closeMode) - 1);
+    s.sunriseOffset = prefs.getInt("sunOff", 0);
+    s.sunsetOffset = prefs.getInt("setOff", 0);
+    s.openHour = prefs.getInt("openH", 8);
+    s.openMin = prefs.getInt("openM", 0);
+    s.closeHour = prefs.getInt("closeH", 21);
+    s.closeMin = prefs.getInt("closeM", 0);
+}
+
 void saveSunSettings(bool autoOpen, bool autoClose, int sunriseOffset, int sunsetOffset) {
     prefs.putBool("autoOpen", autoOpen);
     prefs.putBool("autoClose", autoClose);

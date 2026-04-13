@@ -134,15 +134,21 @@ void webServerInit() {
 
     // Get schedule settings
     server.on("/api/schedule", HTTP_GET, [](AsyncWebServerRequest* request) {
-        bool autoOpen, autoClose;
-        int sunriseOff, sunsetOff;
-        loadSunSettings(autoOpen, autoClose, sunriseOff, sunsetOff);
+        ScheduleSettings s;
+        loadScheduleSettings(s);
 
         JsonDocument doc;
-        doc["autoOpen"] = autoOpen;
-        doc["autoClose"] = autoClose;
-        doc["sunriseOffset"] = sunriseOff;
-        doc["sunsetOffset"] = sunsetOff;
+        doc["autoOpen"] = s.autoOpen;
+        doc["autoClose"] = s.autoClose;
+        doc["openMode"] = s.openMode;
+        doc["closeMode"] = s.closeMode;
+        doc["sunriseOffset"] = s.sunriseOffset;
+        doc["sunsetOffset"] = s.sunsetOffset;
+        char openTime[6], closeTime[6];
+        snprintf(openTime, sizeof(openTime), "%02d:%02d", s.openHour, s.openMin);
+        snprintf(closeTime, sizeof(closeTime), "%02d:%02d", s.closeHour, s.closeMin);
+        doc["openTime"] = openTime;
+        doc["closeTime"] = closeTime;
         String json;
         serializeJson(doc, json);
         request->send(200, "application/json", json);
@@ -159,18 +165,39 @@ void webServerInit() {
         if (index + len == total) {
             JsonDocument doc;
             if (deserializeJson(doc, bodyBuffer) == DeserializationError::Ok) {
-                bool ao = doc["autoOpen"] | true;
-                bool ac = doc["autoClose"] | true;
-                int sunOff = doc["sunriseOffset"] | 0;
-                int setOff = doc["sunsetOffset"] | 0;
-                saveSunSettings(ao, ac, sunOff, setOff);
-                schedulerUpdateSettings(ao, ac, sunOff, setOff);
+                ScheduleSettings s;
+                s.autoOpen = doc["autoOpen"] | true;
+                s.autoClose = doc["autoClose"] | true;
+                strncpy(s.openMode, doc["openMode"] | "sunrise", sizeof(s.openMode) - 1);
+                strncpy(s.closeMode, doc["closeMode"] | "sunset", sizeof(s.closeMode) - 1);
+                s.sunriseOffset = doc["sunriseOffset"] | 0;
+                s.sunsetOffset = doc["sunsetOffset"] | 0;
+                // Parse "HH:MM" time strings
+                const char* ot = doc["openTime"] | "08:00";
+                const char* ct = doc["closeTime"] | "21:00";
+                sscanf(ot, "%d:%d", &s.openHour, &s.openMin);
+                sscanf(ct, "%d:%d", &s.closeHour, &s.closeMin);
+                saveScheduleSettings(s);
+                schedulerUpdateSettings(s);
             }
         }
     });
 
-    // Rename device
-    server.on("/api/rename", HTTP_POST, [](AsyncWebServerRequest* request) {
+    // Get device settings
+    server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest* request) {
+        int speed, accel;
+        loadMotorSpeed(speed, accel);
+        JsonDocument doc;
+        doc["name"] = deviceName;
+        doc["speed"] = speed;
+        doc["accel"] = accel;
+        String json;
+        serializeJson(doc, json);
+        request->send(200, "application/json", json);
+    });
+
+    // Save device settings (name + speed + accel)
+    server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest* request) {
         sendStatus(request);
     },
     NULL,
@@ -184,8 +211,11 @@ void webServerInit() {
                 if (newName && strlen(newName) > 0 && strlen(newName) < 32) {
                     saveDeviceName(newName);
                     strncpy(deviceName, newName, sizeof(deviceName) - 1);
-                    Serial.printf("[Web] Device renamed to: %s (reboot to apply mDNS)\n", deviceName);
                 }
+                int speed = doc["speed"] | DEFAULT_MAX_SPEED;
+                int accel = doc["accel"] | DEFAULT_ACCEL;
+                saveMotorSpeed(speed, accel);
+                motorSetSpeed(speed, accel);
             }
         }
     });

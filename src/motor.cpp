@@ -28,8 +28,11 @@ void motorInit() {
     digitalWrite(MS1_PIN, HIGH);
     digitalWrite(MS2_PIN, HIGH);  // 1/16 microstepping
 
-    stepper.setMaxSpeed(DEFAULT_MAX_SPEED);
-    stepper.setAcceleration(DEFAULT_ACCEL);
+    int speed, accel;
+    loadMotorSpeed(speed, accel);
+    stepper.setMaxSpeed(speed);
+    stepper.setAcceleration(accel);
+    Serial.printf("Motor: speed=%d accel=%d\n", speed, accel);
 
     calibrated = hasCalibration();
     if (calibrated) {
@@ -82,6 +85,12 @@ int motorGetPercent() {
 bool motorIsMoving()     { return stepper.distanceToGo() != 0; }
 bool motorIsCalibrated() { return calibrated; }
 bool motorWasOpening()   { return lastDirOpening; }
+
+void motorSetSpeed(int speed, int accel) {
+    stepper.setMaxSpeed(speed);
+    stepper.setAcceleration(accel);
+    Serial.printf("Motor: speed=%d accel=%d\n", speed, accel);
+}
 
 // --- Calibration ---
 

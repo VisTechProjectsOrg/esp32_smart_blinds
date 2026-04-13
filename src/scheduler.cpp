@@ -105,13 +105,45 @@ static void fetchSunTimes() {
     http.end();
 }
 
+static void autoDetectLocation() {
+    if (!wifiIsConnected()) return;
+
+    // Skip if user already set a custom location
+    float lat, lng;
+    loadLocation(lat, lng);
+    if (lat != DEFAULT_LATITUDE || lng != DEFAULT_LONGITUDE) {
+        Serial.printf("[Scheduler] Using saved location: %.4f, %.4f\n", lat, lng);
+        return;
+    }
+
+    HTTPClient http;
+    http.begin("http://ip-api.com/json/?fields=lat,lon");
+    http.setTimeout(5000);
+    int code = http.GET();
+
+    if (code == 200) {
+        String payload = http.getString();
+        JsonDocument doc;
+        if (deserializeJson(doc, payload) == DeserializationError::Ok) {
+            float newLat = doc["lat"] | 0.0f;
+            float newLon = doc["lon"] | 0.0f;
+            if (newLat != 0.0f && newLon != 0.0f) {
+                saveLocation(newLat, newLon);
+                Serial.printf("[Scheduler] Auto-detected location: %.4f, %.4f\n", newLat, newLon);
+            }
+        }
+    } else {
+        Serial.printf("[Scheduler] Location detect failed: %d\n", code);
+    }
+    http.end();
+}
+
 void schedulerInit() {
-    // POSIX timezone: EST5EDT = auto DST for Eastern Time
-    // Switches to EDT (UTC-4) second Sunday in March, back to EST (UTC-5) first Sunday in November
     configTzTime("EST5EDT,M3.2.0,M11.1.0", "pool.ntp.org", "time.nist.gov");
     Serial.println("[Scheduler] NTP sync started (auto DST)");
 
     loadScheduleSettings(sched);
+    autoDetectLocation();
 }
 
 void schedulerLoop() {

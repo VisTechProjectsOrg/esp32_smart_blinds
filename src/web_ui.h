@@ -78,7 +78,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 <body>
 
 <h1 id="title">Smart Blinds</h1>
-<div class="status" id="statusBar">Connecting...</div>
+<div class="status" id="statusBar">Loading...</div>
 
 <div id="calWarning" class="not-calibrated" style="display:none;">
   Not calibrated - open Calibration below to set up
@@ -167,7 +167,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
     <div class="form-row" style="margin-top:12px;">
       <label>Sunrise / Sunset today</label>
-      <div style="font-size:0.9em; color:#ccc;" id="sunTimes">--</div>
+      <div style="font-size:0.9em; color:#ccc;" id="sunTimes">Fetching sun times...</div>
     </div>
     <button class="btn btn-cal btn-small" style="width:100%;" onclick="saveSchedule()">Save Schedule</button>
     <div class="msg" id="schedMsg"></div>
@@ -233,7 +233,9 @@ function update(data) {
   document.getElementById('title').textContent = data.name || 'Smart Blinds';
   document.getElementById('calWarning').style.display = data.calibrated ? 'none' : 'block';
   if (data.sunrise) {
-    document.getElementById('sunTimes').textContent = data.sunrise + ' / ' + data.sunset;
+    if (data.sunrise && data.sunrise !== '--:--') {
+      document.getElementById('sunTimes').textContent = data.sunrise + ' / ' + data.sunset;
+    }
   }
   if (!document.getElementById('devName').value) {
     document.getElementById('devName').value = data.name || '';

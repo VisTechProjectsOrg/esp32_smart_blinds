@@ -10,6 +10,8 @@
 
 static AsyncWebServer server(80);
 
+AsyncWebServer& webServerGet() { return server; }
+
 // Buffer for collecting POST body data
 static String bodyBuffer;
 
@@ -19,7 +21,7 @@ static void sendStatus(AsyncWebServerRequest* request) {
     doc["moving"] = motorIsMoving();
     doc["calibrated"] = motorIsCalibrated();
     doc["ip"] = wifiGetIP();
-    doc["name"] = DEVICE_NAME;
+    doc["name"] = deviceName;
 
     String sunrise, sunset;
     schedulerGetSunTimes(sunrise, sunset);
@@ -163,6 +165,27 @@ void webServerInit() {
                 int setOff = doc["sunsetOffset"] | 0;
                 saveSunSettings(ao, ac, sunOff, setOff);
                 schedulerUpdateSettings(ao, ac, sunOff, setOff);
+            }
+        }
+    });
+
+    // Rename device
+    server.on("/api/rename", HTTP_POST, [](AsyncWebServerRequest* request) {
+        sendStatus(request);
+    },
+    NULL,
+    [](AsyncWebServerRequest* request, uint8_t* data, size_t len, size_t index, size_t total) {
+        if (index == 0) bodyBuffer = "";
+        bodyBuffer += String((char*)data).substring(0, len);
+        if (index + len == total) {
+            JsonDocument doc;
+            if (deserializeJson(doc, bodyBuffer) == DeserializationError::Ok) {
+                const char* newName = doc["name"];
+                if (newName && strlen(newName) > 0 && strlen(newName) < 32) {
+                    saveDeviceName(newName);
+                    strncpy(deviceName, newName, sizeof(deviceName) - 1);
+                    Serial.printf("[Web] Device renamed to: %s (reboot to apply mDNS)\n", deviceName);
+                }
             }
         }
     });

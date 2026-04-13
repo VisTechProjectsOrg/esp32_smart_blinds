@@ -85,7 +85,7 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
 
 <!-- Main Controls -->
 <div class="card">
-  <div class="position-display"><span id="posVal">--</span>%</div>
+  <div class="position-display"><span id="posVal">--</span><span>%</span></div>
   <div class="slider-wrap">
     <input type="range" id="posSlider" min="0" max="100" value="0">
     <div class="slider-label"><span>Closed</span><span>Open</span></div>
@@ -149,6 +149,21 @@ const char INDEX_HTML[] PROGMEM = R"rawliteral(
   </div>
 </div>
 
+<!-- Device Settings -->
+<div class="card">
+  <h2 class="collapsible" onclick="toggle(this)">Device Settings</h2>
+  <div class="collapse-content">
+    <div class="form-row">
+      <label>Device name (used for mDNS: name.local)</label>
+      <input type="text" id="devName" maxlength="31" placeholder="smartblinds">
+    </div>
+    <button class="btn btn-cal btn-small" style="width:100%;" onclick="renameDevice()">Save Name</button>
+    <div class="msg" id="nameMsg"></div>
+  </div>
+</div>
+
+<a href="/update" style="display:block;text-align:center;margin-top:12px;color:#888;font-size:0.85em;text-decoration:none;">Firmware Update</a>
+
 <script>
 let pollTimer;
 
@@ -161,11 +176,15 @@ function update(data) {
   document.getElementById('posVal').textContent = data.position;
   document.getElementById('posSlider').value = data.position;
   document.getElementById('statusBar').textContent =
-    (data.moving ? 'Moving... ' : '') +
-    'IP: ' + data.ip + ' | ' + data.name;
+    (data.moving ? 'Moving... | ' : '') +
+    'IP: ' + data.ip;
+  document.getElementById('title').textContent = data.name || 'Smart Blinds';
   document.getElementById('calWarning').style.display = data.calibrated ? 'none' : 'block';
   if (data.sunrise) {
     document.getElementById('sunTimes').textContent = data.sunrise + ' / ' + data.sunset;
+  }
+  if (!document.getElementById('devName').value) {
+    document.getElementById('devName').value = data.name || '';
   }
 }
 
@@ -238,6 +257,20 @@ function saveSchedule() {
   }).then(r => r.json()).then(d => {
     document.getElementById('schedMsg').textContent = 'Saved!';
     setTimeout(() => document.getElementById('schedMsg').textContent = '', 2000);
+  });
+}
+
+// Rename device
+function renameDevice() {
+  const name = document.getElementById('devName').value.trim();
+  if (!name) return;
+  fetch('/api/rename', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({name: name})
+  }).then(r => r.json()).then(d => {
+    document.getElementById('nameMsg').textContent = 'Saved! Reboot to apply mDNS.';
+    setTimeout(() => document.getElementById('nameMsg').textContent = '', 3000);
   });
 }
 

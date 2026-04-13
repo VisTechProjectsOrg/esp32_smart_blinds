@@ -3,6 +3,8 @@
 #include <WiFi.h>
 #include <ESPmDNS.h>
 
+char deviceName[32] = "";
+
 static unsigned long lastReconnectAttempt = 0;
 
 void wifiInit() {
@@ -22,8 +24,8 @@ void wifiInit() {
     if (WiFi.status() == WL_CONNECTED) {
         Serial.printf("\n[WiFi] Connected! IP: %s\n", WiFi.localIP().toString().c_str());
 
-        if (MDNS.begin(DEVICE_NAME)) {
-            Serial.printf("[mDNS] http://%s.local\n", DEVICE_NAME);
+        if (MDNS.begin(deviceName)) {
+            Serial.printf("[mDNS] http://%s.local\n", deviceName);
         }
     } else {
         Serial.println("\n[WiFi] Connection failed - will keep retrying");

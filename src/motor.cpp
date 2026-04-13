@@ -9,6 +9,7 @@ static long calClosed = 0;
 static long calOpen = 0;
 static bool calibrated = false;
 static bool wasMoving = false;
+static bool lastDirOpening = true;
 
 static void motorEnable() {
     digitalWrite(EN_PIN, LOW);   // LOW = driver enabled
@@ -65,8 +66,8 @@ void motorMoveTo(int percent) {
     Serial.printf("Motor: moving to %d%% (step %ld)\n", percent, target);
 }
 
-void motorOpen()  { motorMoveTo(100); }
-void motorClose() { motorMoveTo(0); }
+void motorOpen()  { lastDirOpening = true;  motorMoveTo(100); }
+void motorClose() { lastDirOpening = false; motorMoveTo(0); }
 
 void motorStop() {
     stepper.stop();  // decelerates to stop
@@ -80,6 +81,7 @@ int motorGetPercent() {
 
 bool motorIsMoving()     { return stepper.distanceToGo() != 0; }
 bool motorIsCalibrated() { return calibrated; }
+bool motorWasOpening()   { return lastDirOpening; }
 
 // --- Calibration ---
 

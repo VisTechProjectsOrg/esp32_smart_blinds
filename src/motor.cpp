@@ -10,13 +10,22 @@ static long calOpen = 0;
 static bool calibrated = false;
 static bool wasMoving = false;
 static bool lastDirOpening = true;
+static unsigned long disableAt = 0;  // when to disable motor (ms), 0 = already disabled
+static const unsigned long HOLD_TIME = 2000;  // hold torque 2s after stopping
 
 static void motorEnable() {
-    digitalWrite(EN_PIN, LOW);   // LOW = driver enabled
+    disableAt = 0;  // cancel any pending disable
+    digitalWrite(EN_PIN, LOW);
+    delayMicroseconds(500);  // let driver energize before stepping
 }
 
 static void motorDisable() {
-    digitalWrite(EN_PIN, HIGH);  // HIGH = driver disabled (silent, no holding torque)
+    digitalWrite(EN_PIN, HIGH);
+    disableAt = 0;
+}
+
+static void motorScheduleDisable() {
+    disableAt = millis() + HOLD_TIME;
 }
 
 void motorInit() {
@@ -52,12 +61,17 @@ void motorLoop() {
 
     bool moving = stepper.distanceToGo() != 0;
     if (wasMoving && !moving) {
-        motorDisable();  // kill holding current - no more hissing
+        motorScheduleDisable();  // hold torque briefly then disable
         saveCurrentPosition(stepper.currentPosition());
         Serial.printf("Motor stopped at %ld (%d%%)\n",
                        stepper.currentPosition(), motorGetPercent());
     }
     wasMoving = moving;
+
+    // Delayed disable - holds position briefly to prevent backlash
+    if (disableAt > 0 && millis() >= disableAt) {
+        motorDisable();
+    }
 }
 
 void motorMoveTo(int percent) {
